@@ -1,0 +1,578 @@
+%Utilities
+parulaHalfClear = [0.120903225806452,0.754387096774194,0.697670967741935;0.184429032258065,0.771745161290323,0.639109677419355;0.232335483870968,0.788816129032258,0.571925806451613;0.321229032258064,0.799632258064516,0.494625806451613;0.425522580645161,0.802896774193548,0.406574193548387;0.543361290322581,0.796035483870968,0.318687096774194;0.656267741935484,0.781867741935484,0.233203225806452;0.761322580645161,0.762416129032258,0.170558064516129;0.853903225806452,0.742577419354839,0.157364516129032;0.932683870967742,0.729283870967742,0.202977419354839;0.994006451612903,0.740158064516129,0.239851612903226;0.995622580645161,0.786170967741936,0.204903225806452;0.979764516129032,0.836200000000000,0.177732258064516;0.961296774193548,0.887400000000000,0.154329032258065;0.962651612903226,0.936567741935484,0.127070967741935;0.976900000000000,0.983900000000000,0.0805000000000000];
+%%
+
+listSub = getScoredDatasets;
+erPAC_SO_allSub_avg = {};
+
+
+counterSub = 1;
+for idx_sub = 1 : length(listSub)
+    sub = listSub{idx_sub};
+            
+
+    if idx_sub == 1
+        load (['D:\Documents\Research\TMR\openLoop\bimanual_open_loop\data\' sub '\exp\' sub '_preprocessed.mat'])
+        load (['D:\Documents\Research\TMR\openLoop\bimanual_open_loop\data\' sub '\exp\' sub '_trl_epoch.mat'])
+        
+        cfg         = [];
+        cfg.channel = {'Fz'};
+        data = ft_selectdata(cfg,data);
+        idx=find(ismember(trl(:,1),data.sampleinfo(:,1)));
+        data.trialinfo= trl(idx,4:5);
+        
+        cfg = [];
+        cfg.method     = 'mtmconvol';
+        cfg.pad        = 'nextpow2';
+        cfg.taper      = 'hanning';
+        cfg.keeptrials = 'no';
+        cfg.trials     = 1;
+        
+        
+        
+        % er PAC
+        erPAC_template  = ft_freqanalysis(cfg, data);
+        erPAC_template.freq  = 7.25:0.5:29.25;
+        erPAC_template.time= -3:0.002:2.999;
+        erPAC_template.powspctrm= [];
+        
+    end
+    
+    if ~ismember(idx_sub ,[9 13]) % not enough SO
+
+        data = textread(['D:\Documents\Research\TMR\openLoop\bimanual_open_loop\data\' sub '\exp\' sub '_pacERSO_rel_avgOverChan.txt'],'','delimiter',',');
+        erPAC_SO_allSub_avg{counterSub,1} = erPAC_template;
+        erPAC_SO_allSub_avg{counterSub,1}.powspctrm(1,:,1:length(erPAC_template.time)) = data(:,1:length(erPAC_template.time));
+
+        data = textread(['D:\Documents\Research\TMR\openLoop\bimanual_open_loop\data\' sub '\exp\' sub '_pacERSO_irrel_avgOverChan.txt'],'','delimiter',',');
+        erPAC_SO_allSub_avg{counterSub,2} = erPAC_template;
+        erPAC_SO_allSub_avg{counterSub,2}.powspctrm(1,:,1:length(erPAC_template.time)) = data(:,1:length(erPAC_template.time));
+
+        data = textread(['D:\Documents\Research\TMR\openLoop\bimanual_open_loop\data\' sub '\exp\' sub '_pacERSO_rest_avgOverChan.txt'],'','delimiter',',');
+        erPAC_SO_allSub_avg{counterSub,3} = erPAC_template;
+        erPAC_SO_allSub_avg{counterSub,3}.powspctrm(1,:,1:length(erPAC_template.time)) = data(:,1:length(erPAC_template.time));
+        
+    end
+
+end
+
+
+
+for idx_sub = 1 : length(erPAC_SO_allSub_avg)
+    
+    cfg = [];
+    cfg.parameter = 'powspctrm';
+    cfg.operation = 'x1-x2';
+    erPAC_SO_allSub_avg{idx_sub,4} = ft_math(cfg, erPAC_SO_allSub_avg{idx_sub,1},erPAC_SO_allSub_avg{idx_sub,2});
+    erPAC_SO_allSub_avg{idx_sub,5} = ft_math(cfg, erPAC_SO_allSub_avg{idx_sub,1},erPAC_SO_allSub_avg{idx_sub,3});
+    erPAC_SO_allSub_avg{idx_sub,6} = ft_math(cfg, erPAC_SO_allSub_avg{idx_sub,2},erPAC_SO_allSub_avg{idx_sub,3});
+    erPAC_SO_allSub_avg{idx_sub,7} = erPAC_SO_allSub_avg{idx_sub,3};
+    erPAC_SO_allSub_avg{idx_sub,7}.powspctrm = zeros(size(erPAC_SO_allSub_avg{idx_sub,3}.powspctrm,1),size(erPAC_SO_allSub_avg{idx_sub,3}.powspctrm,2),size(erPAC_SO_allSub_avg{idx_sub,3}.powspctrm,3));
+
+    
+end
+
+
+cfg = [];
+% cfg.keepindividual = 'yes'; %For effect size computation
+
+grdAvg_avg.erPAC.stim                   = ft_freqgrandaverage(cfg, erPAC_SO_allSub_avg{:,1});
+grdAvg_avg.erPAC.random                 = ft_freqgrandaverage(cfg, erPAC_SO_allSub_avg{:,2});
+grdAvg_avg.erPAC.rest                   = ft_freqgrandaverage(cfg, erPAC_SO_allSub_avg{:,3});
+grdAvg_avg.erPAC.control                = ft_freqgrandaverage(cfg, erPAC_SO_allSub_avg{:,8});
+grdAvg_avg.erPAC.subtracted             = ft_freqgrandaverage(cfg, erPAC_SO_allSub_avg{:,4});
+grdAvg_avg.erPAC.subtractedStimRest     = ft_freqgrandaverage(cfg, erPAC_SO_allSub_avg{:,5});
+grdAvg_avg.erPAC.subtractedRandoRest    = ft_freqgrandaverage(cfg, erPAC_SO_allSub_avg{:,6});
+
+cfg =[];
+cfg.parameter = 'powspctrm';
+cfg.operation = 'x1-x2';
+
+grdAvg_avg.erPAC.subtractedContRest    = ft_math(cfg, grdAvg_avg.erPAC.rest,grdAvg_avg.erPAC.control);
+grdAvg_avg.erPAC.subtractedContRel     = ft_math(cfg, grdAvg_avg.erPAC.stim,grdAvg_avg.erPAC.control);
+grdAvg_avg.erPAC.subtractedContIrrel   = ft_math(cfg, grdAvg_avg.erPAC.random,grdAvg_avg.erPAC.control);
+
+cfg = [];
+cfg.layout      = [initPath.FieldTrip '/template/layout/EEG1020.lay'];
+cfg.interactive = 'yes';
+cfg.showoutline = 'yes';
+cfg.showlegend  = 'yes';
+cfg.xlim        = [-1 2];
+cfg.colormap    = colormap(parulaHalfClear);
+ft_singleplotTFR(cfg, grdAvg_avg.erPAC.stim)
+ft_singleplotTFR(cfg, grdAvg_avg.erPAC.random)
+ft_singleplotTFR(cfg, grdAvg_avg.erPAC.rest)
+ft_singleplotTFR(cfg, grdAvg_avg.erPAC.control)
+
+
+cfg.zlim        = [-0.05 0.05];
+cfg.colormap    = colormap(parula);
+
+figure;
+subplot(1,3,1)
+ft_singleplotTFR(cfg, grdAvg_avg.erPAC.subtracted)
+subplot(1,3,2)
+ft_singleplotTFR(cfg, grdAvg_avg.erPAC.subtractedRandoRest)
+subplot(1,3,3)
+ft_singleplotTFR(cfg, grdAvg_avg.erPAC.subtractedStimRest)
+
+
+
+load neighboursPerso.mat
+
+
+cfg                     = [];
+cfg.design(1,1:2*(length(erPAC_SO_allSub_avg)))  = [ones(1,(length(erPAC_SO_allSub_avg))) 2*ones(1,(length(erPAC_SO_allSub_avg)))];
+cfg.design(2,1:2*(length(erPAC_SO_allSub_avg)))  = [1:(length(erPAC_SO_allSub_avg)) 1:(length(erPAC_SO_allSub_avg))];
+cfg.ivar                = 1; % the 1st row in cfg.design contains the independent variable
+cfg.uvar                = 2; % the 2nd row in cfg.design contains the subject number
+cfg.method              = 'montecarlo';       
+cfg.statistic           = 'ft_statfun_depsamplesT';
+cfg.correctm            = 'cluster';
+cfg.clusterstatistic    = 'maxsum'; 
+cfg.minnbchan           = 0;              
+cfg.neighbours          = neighbours_perso; 
+cfg.tail                = 1;                    
+cfg.clustertail         = 1;
+cfg.alpha               = 0.05; 
+cfg.clusteralpha        = 0.05;     
+cfg.numrandomization    = 500;      % number of draws from the permutation distribution
+cfg.latency             = [-1 2];
+
+
+[stat12] = ft_freqstatistics(cfg,  erPAC_SO_allSub_avg{:,1}, erPAC_SO_allSub_avg{:,2});
+[stat13] = ft_freqstatistics(cfg,  erPAC_SO_allSub_avg{:,1}, erPAC_SO_allSub_avg{:,3});
+[stat23] = ft_freqstatistics(cfg,  erPAC_SO_allSub_avg{:,2}, erPAC_SO_allSub_avg{:,3});
+
+cfg = [];
+cfg.latency             = [-1 2];
+tmp = ft_selectdata(cfg,grdAvg_avg.erPAC.subtractedContRel);
+tmp.mask   = stat1.prob<0.05;
+
+cfg = [];
+cfg.layout      = [initPath.FieldTrip '/template/layout/EEG1020.lay'];
+cfg.interactive = 'yes';
+cfg.showoutline = 'yes';
+cfg.showlegend  = 'yes';
+cfg.maskstyle     = 'opacity';
+cfg.maskalpha     = 0.5;
+cfg.maskparameter = 'mask';
+cfg.zlim        = [-0.05 0.05];
+figure;ft_singleplotTFR(cfg, tmp)
+tmpSO = csvread('data\group\OL\grdAvg_SO_allstage.csv');tmpSO= tmpSO(:,2);
+
+hold on
+yyaxis right
+plot(tmp.time,tmpSO','-k')
+ylim([-90 30])
+hold off
+
+cfg = [];
+cfg.latency             = [-1 2];
+tmp = ft_selectdata(cfg,grdAvg_avg.erPAC.subtractedRandoRest);
+tmp.mask   = stat23.prob<0.05;
+
+cfg = [];
+cfg.layout      = [initPath.FieldTrip '/template/layout/EEG1020.lay'];
+cfg.interactive = 'yes';
+cfg.showoutline = 'yes';
+cfg.showlegend  = 'yes';
+cfg.maskstyle     = 'opacity';
+cfg.maskalpha     = 0.5;
+cfg.maskparameter = 'mask';
+cfg.zlim        = [-0.05 0.05];
+figure;ft_singleplotTFR(cfg, tmp)
+tmpSO = csvread('data\group\OL\grdAvg_SO_allstage.csv');tmpSO= tmpSO(:,2);
+
+hold on
+yyaxis right
+plot(tmp.time,tmpSO','-k')
+ylim([-90 30])
+
+
+
+cfg = [];
+cfg.method = 'analytic';
+cfg.statistic = 'cohensd'; % see FT_STATFUN_COHENSD
+cfg.ivar = 1;
+cfg.uvar = 2;
+cfg.design(1,1:2*(length(listSub)-2))  = [ones(1,length(listSub)-2) 2*ones(1,length(listSub)-2)];
+cfg.design(2,1:2*(length(listSub)-2))  = [1:length(listSub)-2 1:length(listSub)-2];
+effect_roiStimvsRamdom = ft_freqstatistics(cfg, stim, random);
+disp(effect_roiStimvsRamdom)
+
+cfg = [];
+cfg.channel = 'all';
+cfg.latency = [-1 0.5];
+cfg.frequency = [13.5 20];
+cfg.avgoverchan = 'yes';   % this "squeezes" the channel dimension out of the data
+cfg.avgovertime = 'yes';  % this "squeezes" the time dimension out of the data
+cfg.avgoverfreq = 'yes';  % this "squeezes" the time dimension out of the data
+random = ft_selectdata(cfg, grdAvg_avg.erPAC.random);
+rest  = ft_selectdata(cfg, grdAvg_avg.erPAC.rest);
+cfg = [];
+cfg.method = 'analytic';
+cfg.statistic = 'cohensd'; % see FT_STATFUN_COHENSD
+cfg.ivar = 1;
+cfg.uvar = 2;
+cfg.design(1,1:2*(length(listSub)-2))  = [ones(1,length(listSub)-2) 2*ones(1,length(listSub)-2)];
+cfg.design(2,1:2*(length(listSub)-2))  = [1:length(listSub)-2 1:length(listSub)-2];
+effect_roiRandomvsRest= ft_freqstatistics(cfg, random, rest);
+disp(effect_roiRandomvsRest)
+
+[stat] = ft_freqstatistics(cfg,  preSOPAC_allSub{:,1}, preSOPAC_allSub{:,2});
+
+
+
+cfg = [];
+cfg.latency             = [-1 2];
+tmp = ft_selectdata(cfg,grdAvg_avg.erPAC.subtractedStimRest);
+tmp.mask   = stat.mask;
+
+cfg = [];
+cfg.layout      = [dir.FieldTrip '/template/layout/EEG1020.lay'];
+cfg.interactive = 'yes';
+cfg.showoutline = 'yes';
+cfg.showlegend  = 'yes';
+cfg.maskstyle     = 'opacity';
+cfg.maskalpha     = 0.6;
+cfg.maskparameter = 'mask';
+cfg.zlim        = [-0.02 0.02];
+ft_singleplotTFR(cfg, tmp)
+
+
+ITC=[];
+
+for idx_sub = 1 : length(listSub)
+    
+    cfg         = [];
+    cfg.latency = [0.9 1.1];
+    cfg.avgovertime = 'yes';
+    cfg.frequency = [0.3 2.1];
+    cfg.avgoverfreq = 'yes';
+    dataStim = ft_selectdata(cfg,itc_SO_allSub{idx_sub,1});
+    dataRandom = ft_selectdata(cfg,itc_SO_allSub{idx_sub,2});
+    ITC(idx_sub,1) = dataStim.powspctrm;
+    ITC(idx_sub,2) = dataRandom.powspctrm;
+    
+end
+
+
+%%
+[TMRindex , reactGains , notReactGains] = getBehav();
+
+TMRindex = TMRindex([1:8 10:12 14:24]);
+% Correlation between SO PAC and behaviour
+% TMR index both early and late with TFR relevant - TFR irrelevant
+design=[];
+design(1,1:length(listSub)-2)       = TMRindex;
+
+cfg=[];
+cfg.statistic           = 'ft_statfun_correlationT';
+cfg.method              = 'montecarlo';
+cfg.correctm            = 'cluster';
+cfg.clusterstatistic    = 'maxsum'; 
+cfg.neighbours          = neighbours_perso; 
+cfg.minnbchan           = 0;              
+cfg.alpha               = 0.025; 
+cfg.clusteralpha        = 0.05;     
+cfg.latency             = [-1 2];
+cfg.numrandomization    = 500;
+cfg.design              = design;
+cfg.ivar                = 1;
+
+statCor = ft_freqstatistics(cfg, erPAC_SO_allSub_avg{:,4});
+
+
+cfg = [];
+cfg.latency             = [-1 2];
+tmp = ft_selectdata(cfg,grdAvg_avg.erPAC.subtracted);
+statCor.mask   = statCor.prob<0.05;
+
+cfg = [];
+cfg.layout        = [initPath.FieldTrip '/template/layout/EEG1020.lay'];
+cfg.interactive   = 'yes';
+cfg.showoutline   = 'yes';  
+cfg.showlegend    = 'yes';
+cfg.avgoverchan   = 'no';
+cfg.xlim          = [-1 2];
+cfg.maskstyle     = 'opacity';
+cfg.maskalpha     = 0.5;
+cfg.maskparameter = 'mask';
+cfg.parameter = 'rho';
+cfg.zlim = [-1 1];
+figure;ft_singleplotTFR(cfg, statCor)
+tmpSO = csvread('data\group\OL\grdAvg_SO_allstage.csv');tmpSO= tmpSO(:,2);
+
+hold on
+yyaxis right
+plot(tmp.time,tmpSO','-k')
+ylim([-90 30])
+
+cfg = [];
+cfg.latency             = [0.5 1];
+cfg.frequency           = [14 17];
+cfg.avgoverfreq         = 'yes';
+cfg.avgovertime         = 'yes';
+tmp = ft_selectdata(cfg,stat);
+
+
+PACAverage = [];
+for idx_sub = 1 : length(erPAC_SO_allSub_avg)
+    
+        cfg = [];
+        cfg.avgovertime         = 'yes';
+        cfg.avgoverfreq         = 'yes';
+        cfg.avgoverchan         = 'yes';
+        % For Cor with TMR
+        cfg.latency             = [0.55 1.06];
+        cfg.frequency           = [14.5 16];
+        
+        % For Cor with Sws caracteristics
+%         cfg.latency             = [-0.5 0.5];
+%         cfg.frequency           = [14 18];
+
+        
+        tmp                     = ft_selectdata(cfg,erPAC_SO_allSub_avg{idx_sub,4});
+        PACAverage(idx_sub,1) = tmp.powspctrm;
+        
+        tmp                     = ft_selectdata(cfg,erPAC_SO_allSub_avg{idx_sub,1});
+        PACAverage(idx_sub,2) = tmp.powspctrm;
+        
+        tmp                     = ft_selectdata(cfg,erPAC_SO_allSub_avg{idx_sub,2});
+        PACAverage(idx_sub,3) = tmp.powspctrm;
+end
+
+csvwrite([initPath.Exp 'data\group\OL\PAC_relVsIrrelForCor.csv'],PACAverage)
+% csvwrite([initPath.Exp 'data\group\OL\PAC_relVsIrrelForSw.csv'],PACAverage)
+
+
+% Offline gain in react both early and late with TFR relevant 
+design(1,1:length(listSub)-2)       = [  0.2116431234  0.3405858412  0.3214817219 ...
+    0.0004167532  0.1442537994  0.2172953504 -0.0225442508  0.3362848209 ...
+   -0.0844974713  0.1020246232  0.2200232825  ...
+ 0.0359798153  0.1039230677  0.2935166032   0.1323151041  0.1695819974  ...
+ 0.1177051794  0.0511158980  0.0908001297  0.1864793652  0.1650714297 -0.0067169097]; 
+
+cfg.design           = design;
+
+stat = ft_freqstatistics(cfg, erPAC_SO_allSub_avg{:,1});
+
+% Offline gain in not react both early and late with TFR irrelevant 
+design(1,1:length(listSub)-2)       =  [ -0.36279555  0.19205582  0.28019562 ...
+    -0.01665761  0.16103859  0.01546686 -0.26225657  0.40485138 ...
+  0.06620860  0.09779284  0.11531575  -0.02538434  0.09021207  ...
+  0.16310537 -0.11078920  0.05585621 0.25243604  0.10025795  0.01879572  ...
+  0.23137372  0.02086235  0.13766224]; 
+
+cfg.design           = design;
+
+stat = ft_freqstatistics(cfg, erPAC_SO_allSub_avg{:,2});
+
+
+
+PACAverage = [];
+for idx_sub = 1 : length(listSub)
+
+    cfg = [];
+    cfg.avgovertime         = 'yes';
+    cfg.avgoverfreq         = 'yes';
+    cfg.avgoverchan         = 'yes';
+    
+    cfg.latency             = [0.5 1];
+    cfg.frequency           = [14 18];
+    tmp                     = ft_selectdata(cfg,erPAC_SO_allSub_avg{idx_sub,1});
+    PACAverage(idx_sub,1) = tmp.powspctrm;
+
+    tmp                     = ft_selectdata(cfg,erPAC_SO_allSub_avg{idx_sub,2});
+    PACAverage(idx_sub,2) = tmp.powspctrm;
+
+    tmp                     = ft_selectdata(cfg,erPAC_SO_allSub_avg{idx_sub,4});
+    PACAverage(idx_sub,3) = tmp.powspctrm;
+    
+end
+
+
+%% Against RAndom
+
+
+
+erPAC_SO_allSub_rand = {};
+
+
+counterSub = 1;
+for idx_sub = 1 : length(listSub)
+    sub = listSub{idx_sub};
+            
+
+%     if idx_sub == 1
+%         load (['D:\Documents\Research\TMR\openLoop\bimanual_open_loop\data\' sub '\exp\' sub '_preprocessed.mat'])
+%         load (['D:\Documents\Research\TMR\openLoop\bimanual_open_loop\data\' sub '\exp\' sub '_trl_epoch.mat'])
+% 
+%         cfg         = [];
+%         cfg.channel = {'Fz'};
+%         data = ft_selectdata(cfg,data);
+%         idx=find(ismember(trl(:,1),data.sampleinfo(:,1)));
+%         data.trialinfo= trl(idx,4:5);
+% 
+%         cfg = [];
+%         cfg.method     = 'mtmconvol';
+%         cfg.pad        = 'nextpow2';
+%         cfg.taper      = 'hanning';
+%         cfg.keeptrials = 'no';
+%         cfg.trials     = 1;
+%         
+%         
+%         % itc
+%         cfg.foi = 5.25:0.5:29.25; 
+%         cfg.toi = -3:0.002:3; 
+%         cfg.t_ftimwin  = 5./cfg.foi;
+%         cfg.tapsmofrq  = 0.4 *cfg.foi;
+% 
+%         % er PAC
+%         erPAC_template  = ft_freqanalysis(cfg, data);
+%         erPAC_template.freq  = 7.25:0.5:29.25; 
+%         erPAC_template.time= -3:0.002:2.999; 
+%         erPAC_template.powspctrm= [];
+% 
+%     end
+%    
+    if ~ismember(idx_sub ,[9 13]) 
+        data = textread(['D:\Documents\Research\TMR\openLoop\bimanual_open_loop\data\' sub '\exp\' sub '_pacERSO_concat_avgOverChan.txt'],'','delimiter',',');
+        erPAC_SO_allSub_rand{counterSub,1} = erPAC_template;
+        erPAC_SO_allSub_rand{counterSub,1}.powspctrm(1,:,1:length(erPAC_template.time)) = data(:,1:length(erPAC_template.time));
+        
+        data = textread(['D:\Documents\Research\TMR\openLoop\bimanual_open_loop\data\' sub '\exp\' sub '_pacERSO_rand_avgOverChan.txt'],'','delimiter',',');
+        erPAC_SO_allSub_rand{counterSub,2} = erPAC_template;
+        erPAC_SO_allSub_rand{counterSub,2}.powspctrm(1,:,1:length(erPAC_template.time)) = data(:,1:length(erPAC_template.time));
+
+        data = textread(['D:\Documents\Research\TMR\openLoop\bimanual_open_loop\data\' sub '\exp\' sub '_pacERSO_rand2_avgOverChan.txt'],'','delimiter',',');
+        erPAC_SO_allSub_rand{counterSub,3} = erPAC_template;
+        erPAC_SO_allSub_rand{counterSub,3}.powspctrm(1,:,1:length(erPAC_template.time)) = data(:,1:length(erPAC_template.time));
+
+
+        data = textread(['D:\Documents\Research\TMR\openLoop\bimanual_open_loop\data\' sub '\exp\' sub '_pacERSO_rand3_avgOverChan.txt'],'','delimiter',',');
+        erPAC_SO_allSub_rand{counterSub,4} = erPAC_template;
+        erPAC_SO_allSub_rand{counterSub,4}.powspctrm(1,:,1:length(erPAC_template.time)) = data(:,1:length(erPAC_template.time));
+
+        erPAC_SO_allSub_rand{counterSub,5} = erPAC_SO_allSub_rand{counterSub,3};
+        erPAC_SO_allSub_rand{counterSub,5}.powspctrm = zeros(size(erPAC_SO_allSub_rand{counterSub,3}.powspctrm,1),size(erPAC_SO_allSub_rand{counterSub,3}.powspctrm,2),size(erPAC_SO_allSub_rand{counterSub,3}.powspctrm,3));
+
+        counterSub = counterSub +1;
+    end
+
+end
+
+
+cfg = [];
+cfg.keepindividual = 'yes';
+
+grdAvg_avg.erPAC.concat                   = ft_freqgrandaverage(cfg, erPAC_SO_allSub_rand{:,1});
+grdAvg_avg.erPAC.control                  = ft_freqgrandaverage(cfg, erPAC_SO_allSub_rand{:,2});
+grdAvg_avg.erPAC.control2                 = ft_freqgrandaverage(cfg, erPAC_SO_allSub_rand{:,3});
+grdAvg_avg.erPAC.control3                 = ft_freqgrandaverage(cfg, erPAC_SO_allSub_rand{:,4});
+
+cfg =[];
+cfg.parameter = 'powspctrm';
+cfg.operation = 'x1-x2';
+
+grdAvg_avg.erPAC.subtractedContConcat = ft_math(cfg, grdAvg_avg.erPAC.concat,grdAvg_avg.erPAC.control);
+grdAvg_avg.erPAC.subtractedContConcat2 = ft_math(cfg, grdAvg_avg.erPAC.concat,grdAvg_avg.erPAC.control2);
+grdAvg_avg.erPAC.subtractedContConcat3 = ft_math(cfg, grdAvg_avg.erPAC.concat,grdAvg_avg.erPAC.control3);
+
+cfg                     = [];
+cfg.design(1,1:2*(length(erPAC_SO_allSub_rand)))  = [ones(1,(length(erPAC_SO_allSub_rand))) 2*ones(1,(length(erPAC_SO_allSub_rand)))];
+cfg.design(2,1:2*(length(erPAC_SO_allSub_rand)))  = [1:(length(erPAC_SO_allSub_rand)) 1:(length(erPAC_SO_allSub_rand))];
+cfg.ivar                = 1; % the 1st row in cfg.design contains the independent variable
+cfg.uvar                = 2; % the 2nd row in cfg.design contains the subject number
+cfg.method              = 'montecarlo';       
+cfg.statistic           = 'ft_statfun_depsamplesT';
+cfg.correctm            = 'cluster';
+cfg.clusterstatistic    = 'maxsum'; 
+cfg.minnbchan           = 0;              
+cfg.neighbours          = neighbours_perso; 
+cfg.tail                = 1;                    
+cfg.clustertail         = 1;
+cfg.alpha               = 0.05; 
+cfg.clusteralpha        = 0.05;     
+cfg.numrandomization    = 500;      % number of draws from the permutation distribution
+cfg.latency             = [-1 2];
+
+[statRandzerp] = ft_freqstatistics(cfg,  erPAC_SO_allSub_rand{:,2}, erPAC_SO_allSub_rand{:,5});
+[statRand] = ft_freqstatistics(cfg,  erPAC_SO_allSub_rand{:,1}, erPAC_SO_allSub_rand{:,2});
+[statRand2] = ft_freqstatistics(cfg,  erPAC_SO_allSub_rand{:,1}, erPAC_SO_allSub_rand{:,3});
+[statRand3] = ft_freqstatistics(cfg,  erPAC_SO_allSub_rand{:,1}, erPAC_SO_allSub_rand{:,4});
+
+
+
+cfg = [];
+cfg.latency             = [-1 2];
+tmp = ft_selectdata(cfg,grdAvg_avg.erPAC.subtractedContConcat);
+tmp.mask   = statRand.prob<0.05;
+
+cfg = [];
+cfg.layout      = [initPath.FieldTrip '/template/layout/EEG1020.lay'];
+cfg.interactive = 'yes';
+cfg.showoutline = 'yes';
+cfg.showlegend  = 'yes';
+cfg.maskstyle     = 'opacity';
+cfg.maskalpha     = 0.5;
+cfg.maskparameter = 'mask';
+% cfg.zlim        = [-0.05 0.05];
+figure;ft_singleplotTFR(cfg, tmp)
+tmpSO = csvread('D:\Documents\Research\TMR\openLoop\bimanual_open_loop\data\\group\OL\grdAvg_SO_allstage.csv');tmpSO= tmpSO(:,2);
+
+hold on
+yyaxis right
+plot(tmp.time,tmpSO','-k')
+ylim([-90 30])
+hold off
+
+cfg = [];
+cfg.latency             = [-1 2];
+tmp = ft_selectdata(cfg,grdAvg_avg.erPAC.subtractedContConcat2);
+tmp.mask   = statRand2.prob<0.05;
+
+cfg = [];
+cfg.layout      = [initPath.FieldTrip '/template/layout/EEG1020.lay'];
+cfg.interactive = 'yes';
+cfg.showoutline = 'yes';
+cfg.showlegend  = 'yes';
+cfg.maskstyle     = 'opacity';
+cfg.maskalpha     = 0.5;
+cfg.maskparameter = 'mask';
+% cfg.zlim        = [-0.05 0.05];
+figure;ft_singleplotTFR(cfg, tmp)
+tmpSO = csvread('D:\Documents\Research\TMR\openLoop\bimanual_open_loop\data\\group\OL\grdAvg_SO_allstage.csv');tmpSO= tmpSO(:,2);
+
+hold on
+yyaxis right
+plot(tmp.time,tmpSO','-k')
+ylim([-90 30])
+hold off
+
+cfg = [];
+cfg.latency             = [-1 2];
+tmp = ft_selectdata(cfg,grdAvg_avg.erPAC.subtractedContConcat3);
+tmp.mask   = statRand3.prob<0.05;
+
+cfg = [];
+cfg.layout      = [initPath.FieldTrip '/template/layout/EEG1020.lay'];
+cfg.interactive = 'yes';
+cfg.showoutline = 'yes';
+cfg.showlegend  = 'yes';
+cfg.maskstyle     = 'opacity';
+cfg.maskalpha     = 0.5;
+cfg.maskparameter = 'mask';
+% cfg.zlim        = [-0.05 0.05];
+figure;ft_singleplotTFR(cfg, tmp)
+tmpSO = csvread('D:\Documents\Research\TMR\openLoop\bimanual_open_loop\data\\group\OL\grdAvg_SO_allstage.csv');tmpSO= tmpSO(:,2);
+
+hold on
+yyaxis right
+plot(tmp.time,tmpSO','-k')
+ylim([-90 30])
+hold off
+
+
+
